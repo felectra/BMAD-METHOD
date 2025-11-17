@@ -1,0 +1,88 @@
+# PKD Module - Installation Configuration
+# Проєктно-кошторисна документація (Project Cost Documentation)
+# Ukrainian Building Standards Validation & Generation
+
+# Module metadata
+code: pkd
+name: 'PKD - ПКД Expert System'
+default_selected: false
+
+# Welcome message during installation
+prompt:
+  - 'Welcome to PKD Module - Ukrainian Building Standards Expert System!'
+  - ''
+  - 'This module provides validation and generation tools for ПКД (Проєктно-кошторисна документація)'
+  - 'based on Ukrainian building standards (ДБН, ДСТУ, ISO).'
+  - ''
+  - 'Included agents:'
+  - '  • Maksym (DBN Expert) - Validates PKD structure per ДБН А.2.2-3:2014'
+  - ''
+  - 'Knowledge base: 10 standards (7 ДБН + 2 ДСТУ + standards matrix)'
+
+# Core values automatically inherited from installer:
+## user_name
+## communication_language (default: Ukrainian)
+## document_output_language
+## output_folder
+
+# Module-specific configuration
+
+# Output location for PKD documents
+output_location:
+  prompt: 'Where should PKD validation reports be saved?'
+  default: 'output/pkd'
+  result: '{project-root}/{value}'
+
+# Standards focus
+standards_focus:
+  prompt: 'Which standards family to prioritize?'
+  default: 'dbn'
+  result: '{value}'
+  single-select:
+    - value: 'dbn'
+      label: 'ДБН - Ukrainian Building Standards (primary)'
+    - value: 'dstu'
+      label: 'ДСТУ - Ukrainian State Standards (secondary)'
+    - value: 'all'
+      label: 'All Standards - ДБН + ДСТУ + ISO (comprehensive)'
+
+# Project type for validation defaults
+project_type:
+  prompt: 'Default project type for validation?'
+  default: 'industrial'
+  result: '{value}'
+  single-select:
+    - value: 'residential'
+      label: 'Residential - Житлові будинки (Додаток Д)'
+    - value: 'industrial'
+      label: 'Industrial - Промислові об\'єкти (Додаток Е)'
+    - value: 'infrastructure'
+      label: 'Infrastructure - Критична інфраструктура'
+
+# Static configuration values
+
+# Module version
+module_version:
+  result: '1.0.0'
+
+# Data paths for standards
+data_dbn_path:
+  result: '{project-root}/{bmad_folder}/pkd/data/dbn'
+
+data_dstu_path:
+  result: '{project-root}/{bmad_folder}/pkd/data/dstu'
+
+data_iso_path:
+  result: '{project-root}/{bmad_folder}/pkd/data/iso'
+
+# Module folder path
+module_folder:
+  result: '{project-root}/{bmad_folder}/pkd'
+
+# Default communication language (Ukrainian for technical documentation)
+pkd_language:
+  result: 'Ukrainian'
+
+# Standards validation strictness
+validation_strictness:
+  result: 'strict'  # Options: strict, balanced, permissive

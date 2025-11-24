@@ -19,6 +19,8 @@ permissions:
 
 jobs:
   release:
+    # Only run on upstream repo, not forks
+    if: github.repository == 'bmad-code-org/BMAD-METHOD'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -103,7 +105,7 @@ jobs:
 
           # Categorize commits
           FEATURES=$(echo "$COMMITS" | grep -E "^- (feat|Feature)" || true)
-          FIXES=$(echo "$COMMITS" | grep -E "^- (fix|Fix)" || true)  
+          FIXES=$(echo "$COMMITS" | grep -E "^- (fix|Fix)" || true)
           CHORES=$(echo "$COMMITS" | grep -E "^- (chore|Chore)" || true)
           OTHERS=$(echo "$COMMITS" | grep -v -E "^- (feat|Feature|fix|Fix|chore|Chore|release:|Release:)" || true)
 

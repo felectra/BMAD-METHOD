@@ -10,6 +10,8 @@ permissions:
 
 jobs:
   bundle-and-publish:
+    # Only run on upstream repo, not forks
+    if: github.repository == 'bmad-code-org/BMAD-METHOD'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout BMAD-METHOD

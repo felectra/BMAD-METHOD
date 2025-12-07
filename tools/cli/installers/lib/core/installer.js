@@ -912,6 +912,7 @@ If AgentVibes party mode is enabled, immediately trigger TTS with agent's voice:
         await this.moduleManager.runModuleInstaller('core', bmadDir, {
           installedIDEs: config.ides || [],
           moduleConfig: moduleConfigs.core || {},
+          coreConfig: moduleConfigs.core || {},
           logger: {
             log: (msg) => console.log(msg),
             error: (msg) => console.error(msg),
@@ -929,6 +930,7 @@ If AgentVibes party mode is enabled, immediately trigger TTS with agent's voice:
           await this.moduleManager.runModuleInstaller(moduleName, bmadDir, {
             installedIDEs: config.ides || [],
             moduleConfig: moduleConfigs[moduleName] || {},
+            coreConfig: moduleConfigs.core || {},
             logger: {
               log: (msg) => console.log(msg),
               error: (msg) => console.error(msg),

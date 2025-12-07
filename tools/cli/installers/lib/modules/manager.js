@@ -121,8 +121,14 @@ class ModuleManager {
         for (const entry of entries) {
           const fullPath = path.join(dir, entry.name);
 
-          // Skip hidden directories and node_modules
-          if (entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === 'dist' || entry.name === 'build') {
+          // Skip hidden directories, node_modules, and literal placeholder directories
+          if (
+            entry.name.startsWith('.') ||
+            entry.name === 'node_modules' ||
+            entry.name === 'dist' ||
+            entry.name === 'build' ||
+            entry.name === '{project-root}'
+          ) {
             continue;
           }
 
@@ -137,10 +143,16 @@ class ModuleManager {
               continue;
             }
 
-            // Check if this directory contains a module (only install-config.yaml is valid now)
+            // Check if this directory contains a module (install-config.yaml OR custom.yaml)
             const installerConfigPath = path.join(fullPath, '_module-installer', 'install-config.yaml');
+            const customConfigPath = path.join(fullPath, '_module-installer', 'custom.yaml');
+            const rootCustomConfigPath = path.join(fullPath, 'custom.yaml');
 
-            if (await fs.pathExists(installerConfigPath)) {
+            if (
+              (await fs.pathExists(installerConfigPath)) ||
+              (await fs.pathExists(customConfigPath)) ||
+              (await fs.pathExists(rootCustomConfigPath))
+            ) {
               modulePaths.add(fullPath);
               // Don't scan inside modules - they might have their own nested structures
               continue;
@@ -175,11 +187,12 @@ class ModuleManager {
       for (const entry of entries) {
         if (entry.isDirectory()) {
           const modulePath = path.join(this.modulesSourcePath, entry.name);
-          // Check for module structure (only install-config.yaml is valid now)
+          // Check for module structure (install-config.yaml OR custom.yaml)
           const installerConfigPath = path.join(modulePath, '_module-installer', 'install-config.yaml');
+          const customConfigPath = path.join(modulePath, '_module-installer', 'custom.yaml');
 
           // Skip if this doesn't look like a module
-          if (!(await fs.pathExists(installerConfigPath))) {
+          if (!(await fs.pathExists(installerConfigPath)) && !(await fs.pathExists(customConfigPath))) {
             continue;
           }
 
@@ -225,14 +238,27 @@ class ModuleManager {
    * @returns {Object|null} Module info or null if not a valid module
    */
   async getModuleInfo(modulePath, defaultName, sourceDescription) {
-    // Check for module structure (only install-config.yaml is valid now)
+    // Check for module structure (install-config.yaml OR custom.yaml)
     const installerConfigPath = path.join(modulePath, '_module-installer', 'install-config.yaml');
+    const customConfigPath = path.join(modulePath, '_module-installer', 'custom.yaml');
+    const rootCustomConfigPath = path.join(modulePath, 'custom.yaml');
+    let configPath = null;
+
+    if (await fs.pathExists(installerConfigPath)) {
+      configPath = installerConfigPath;
+    } else if (await fs.pathExists(customConfigPath)) {
+      configPath = customConfigPath;
+    } else if (await fs.pathExists(rootCustomConfigPath)) {
+      configPath = rootCustomConfigPath;
+    }
 
     // Skip if this doesn't look like a module
-    if (!(await fs.pathExists(installerConfigPath))) {
+    if (!configPath) {
       return null;
     }
 
+    // Mark as custom if it's using custom.yaml OR if it's outside src/modules
+    const isCustomSource = sourceDescription !== 'src/modules';
     const moduleInfo = {
       id: defaultName,
       path: modulePath,
@@ -243,11 +269,12 @@ class ModuleManager {
       description: 'BMAD Module',
       version: '5.0.0',
       source: sourceDescription,
+      isCustom: configPath === customConfigPath || configPath === rootCustomConfigPath || isCustomSource,
     };
 
     // Read module config for metadata
     try {
-      const configContent = await fs.readFile(installerConfigPath, 'utf8');
+      const configContent = await fs.readFile(configPath, 'utf8');
       const config = yaml.load(configContent);
 
       // Use the code property as the id if available
@@ -284,6 +311,12 @@ class ModuleManager {
       if (await fs.pathExists(installerConfigPath)) {
         return srcModulePath;
       }
+
+      // Also check for custom.yaml in src/modules/_module-installer
+      const customConfigPath = path.join(srcModulePath, '_module-installer', 'custom.yaml');
+      if (await fs.pathExists(customConfigPath)) {
+        return srcModulePath;
+      }
     }
 
     // If not found in src/modules, search the entire project
@@ -298,10 +331,21 @@ class ModuleManager {
     // Need to read configs to match by ID
     for (const modulePath of allModulePaths) {
       const installerConfigPath = path.join(modulePath, '_module-installer', 'install-config.yaml');
+      const customConfigPath = path.join(modulePath, '_module-installer', 'custom.yaml');
+      const rootCustomConfigPath = path.join(modulePath, 'custom.yaml');
 
+      let configPath = null;
       if (await fs.pathExists(installerConfigPath)) {
+        configPath = installerConfigPath;
+      } else if (await fs.pathExists(customConfigPath)) {
+        configPath = customConfigPath;
+      } else if (await fs.pathExists(rootCustomConfigPath)) {
+        configPath = rootCustomConfigPath;
+      }
+
+      if (configPath) {
         try {
-          const configContent = await fs.readFile(installerConfigPath, 'utf8');
+          const configContent = await fs.readFile(configPath, 'utf8');
           const config = yaml.load(configContent);
           if (config.code === moduleName) {
             return modulePath;
@@ -332,6 +376,35 @@ class ModuleManager {
     // Check if source module exists
     if (!sourcePath) {
       throw new Error(`Module '${moduleName}' not found in any source location`);
+    }
+
+    // Check if this is a custom module and read its custom.yaml values
+    let customConfig = null;
+    const rootCustomConfigPath = path.join(sourcePath, 'custom.yaml');
+    const moduleInstallerCustomPath = path.join(sourcePath, '_module-installer', 'custom.yaml');
+
+    if (await fs.pathExists(rootCustomConfigPath)) {
+      try {
+        const customContent = await fs.readFile(rootCustomConfigPath, 'utf8');
+        customConfig = yaml.load(customContent);
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Failed to read custom.yaml for ${moduleName}:`, error.message));
+      }
+    } else if (await fs.pathExists(moduleInstallerCustomPath)) {
+      try {
+        const customContent = await fs.readFile(moduleInstallerCustomPath, 'utf8');
+        customConfig = yaml.load(customContent);
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Failed to read custom.yaml for ${moduleName}:`, error.message));
+      }
+    }
+
+    // If this is a custom module, merge its values into the module config
+    if (customConfig) {
+      options.moduleConfig = { ...options.moduleConfig, ...customConfig };
+      if (options.logger) {
+        options.logger.log(chalk.cyan(`  Merged custom configuration for ${moduleName}`));
+      }
     }
 
     // Check if already installed
@@ -508,7 +581,8 @@ class ModuleManager {
       }
 
       // Skip config.yaml templates - we'll generate clean ones with actual values
-      if (file === 'config.yaml' || file.endsWith('/config.yaml')) {
+      // Also skip custom.yaml files - their values will be merged into core config
+      if (file === 'config.yaml' || file.endsWith('/config.yaml') || file === 'custom.yaml' || file.endsWith('/custom.yaml')) {
         continue;
       }
 
@@ -1035,6 +1109,7 @@ class ModuleManager {
         const result = await moduleInstaller.install({
           projectRoot,
           config: options.moduleConfig || {},
+          coreConfig: options.coreConfig || {},
           installedIDEs: options.installedIDEs || [],
           logger,
         });
